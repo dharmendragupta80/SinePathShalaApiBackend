@@ -16,36 +16,64 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-GEMINI_KEY = os.getenv("GEMINI_KEY")
-if not GEMINI_KEY:
-    # We don't raise here to allow local dev without env var; route will fail with proper error.
-    print("WARNING: GEMINI_KEY environment variable not set. Set GEMINI_KEY before deploying.")
+# ✅ Environment variable
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
+if not GROQ_API_KEY:
+    print("WARNING: GROQ_API_KEY not set. Set GROQ_API_KEY before deploying.")
+
+# ✅ AskRequest must be OUTSIDE the if block
 class AskRequest(BaseModel):
     question: str
 
+
 @app.post("/ask", dependencies=[Depends(verify_client_key)])
 async def ask(req: AskRequest):
-    """Proxy endpoint that forwards the question to the Gemini generative language API and returns the JSON response."""
-    if not GEMINI_KEY:
-        raise HTTPException(status_code=500, detail="Server misconfiguration: GEMINI_KEY not set on server.")
 
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-    params = {"key": GEMINI_KEY}
+    if not GROQ_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Server misconfiguration: GROQ_API_KEY not set."
+        )
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
     body = {
-        "contents": [
-            {"parts": [{"text": req.question}]}
-        ]
+        "model": "llama3-8b-8192",
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are SinePathshala Science AI Tutor. "
+                    "Only answer questions related to Physics, Chemistry, Biology, "
+                    "Mathematics, Astronomy, Engineering and Technology. "
+                    "If user asks non-science question, politely refuse."
+                )
+            },
+            {
+                "role": "user",
+                "content": req.question
+            }
+        ],
+        "temperature": 0.3
     }
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(url, params=params, json=body)
+            resp = await client.post(url, headers=headers, json=body)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Upstream communication failed: {e}")
 
     if resp.status_code >= 400:
-        # Return upstream error text for debugging; in prod you might hide this.
         raise HTTPException(status_code=502, detail=f"Upstream error: {resp.status_code} - {resp.text}")
 
-    return resp.json()
+    data = resp.json()
+
+    answer = data["choices"][0]["message"]["content"]
+
+    return {"answer": answer}
