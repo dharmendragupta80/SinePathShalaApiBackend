@@ -70,13 +70,7 @@ async def ask(req: AskRequest):
         raise HTTPException(status_code=502, detail=f"Upstream communication failed: {e}")
 
 if resp.status_code >= 400:
-    print("===== GROQ ERROR =====")
-    print("Status:", resp.status_code)
-    print("Response:", resp.text)
-    print("======================")
-    raise HTTPException(status_code=502, detail="Groq upstream error")
-    data = resp.json()
-
+    raise HTTPException(status_code=502, detail=f"Upstream error: {resp.status_code} - {resp.text}")
     answer = data["choices"][0]["message"]["content"]
 
     return {"answer": answer}
