@@ -7,7 +7,7 @@ from auth import verify_client_key
 
 app = FastAPI(title="SinePathshala Backend - FastAPI")
 
-# Allow CORS from any origin for now (restrict in production)
+# Allow CORS (restrict in production)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,13 +16,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Environment variable
+# Environment variable
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 if not GROQ_API_KEY:
-    print("WARNING: GROQ_API_KEY not set. Set GROQ_API_KEY before deploying.")
+    print("WARNING: GROQ_API_KEY not set. Set GROQ_API_KEY in Render environment variables.")
 
-# ✅ AskRequest must be OUTSIDE the if block
+# Request model
 class AskRequest(BaseModel):
     question: str
 
@@ -44,7 +44,7 @@ async def ask(req: AskRequest):
     }
 
     body = {
-        "model": "llama3-8b-8192",
+        "model": "llama-3.1-8b-instant",  # Updated working Groq model
         "messages": [
             {
                 "role": "system",
@@ -66,11 +66,29 @@ async def ask(req: AskRequest):
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(url, headers=headers, json=body)
+
+        # Handle Groq API errors
+        if resp.status_code >= 400:
+            print("===== GROQ ERROR =====")
+            print("Status:", resp.status_code)
+            print("Response:", resp.text)
+            print("======================")
+            raise HTTPException(status_code=502, detail="Groq upstream error")
+
+        data = resp.json()
+
+        if "choices" not in data:
+            print("Invalid Groq response:", data)
+            raise HTTPException(status_code=502, detail="Invalid Groq response")
+
+        answer = data["choices"][0]["message"]["content"]
+
+        return {"answer": answer}
+
+    except httpx.RequestError as e:
+        print("HTTPX Error:", str(e))
+        raise HTTPException(status_code=502, detail="Upstream communication failed")
+
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Upstream communication failed: {e}")
-
-if resp.status_code >= 400:
-    raise HTTPException(status_code=502, detail=f"Upstream error: {resp.status_code} - {resp.text}")
-    answer = data["choices"][0]["message"]["content"]
-
-    return {"answer": answer}
+        print("Server Error:", str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
