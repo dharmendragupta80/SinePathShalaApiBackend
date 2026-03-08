@@ -84,7 +84,7 @@ async def ask(req: AskRequest):
 "Use small paragraphs (1-2 lines)."
 
                 
-            },
+) },
             {
                 "role": "user",
                 "content": req.question
