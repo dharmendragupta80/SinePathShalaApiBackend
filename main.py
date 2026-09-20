@@ -44,7 +44,7 @@ async def ask(req: AskRequest):
     }
 
     body = {
-        "model": "llama-3.1-8b-instant",  # Updated working Groq model
+        "model": "llama-3.3-70b-versatile",  # Updated working Groq model
         "messages": [
             {
                 "role": "system",
