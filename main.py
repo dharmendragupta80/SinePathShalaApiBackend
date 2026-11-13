@@ -126,7 +126,8 @@ async def ask(req: AskRequest):
                 "content": req.question
             }
         ],
-        "temperature": 0.3
+        "temperature": 0.3,
+        "max_tokens": 300   # ✅ YE NAYI LINE ADD KAREIN
     }
 
     try:
