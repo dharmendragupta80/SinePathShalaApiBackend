@@ -28,12 +28,13 @@ class AskRequest(BaseModel):
 
 
 # ==========================================
-# ✅ NEW: AUTO-MODEL SELECTOR LOGIC
+# ✅ NEW: SMART AUTO-MODEL SELECTOR LOGIC
 # ==========================================
 PREFERRED_MODELS = [
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
-    "mixtral-8x7b-32768"
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it"  # Naya backup model
 ]
 
 cached_working_model = None
@@ -53,25 +54,27 @@ async def get_active_groq_model():
                 data = resp.json()
                 active_ids = [m["id"] for m in data.get("data", [])]
                 
-                # Pick the best model from our list that is currently active
+                # 1. Pehle humari list check karega
                 for model in PREFERRED_MODELS:
                     if model in active_ids:
                         cached_working_model = model
                         print(f"Auto-selected working model: {cached_working_model}")
                         return cached_working_model
                 
-                # Fallback: just grab the first available model
-                if active_ids:
-                    cached_working_model = active_ids[0]
-                    return cached_working_model
+                # 2. Fallback: Agar upar wala koi na mile, toh pehla Text model chuno
+                # (whisper aur llava ko ignore karo)
+                for model in active_ids:
+                    if "whisper" not in model and "llava" not in model:
+                        cached_working_model = model
+                        print(f"Fallback selected model: {cached_working_model}")
+                        return cached_working_model
+                        
     except Exception as e:
         print("Failed to fetch live models from Groq:", str(e))
     
-    # Ultimate fallback if the models endpoint fails
+    # Ultimate fallback
     return "mixtral-8x7b-32768"
 # ==========================================
-
-
 @app.post("/ask", dependencies=[Depends(verify_client_key)])
 async def ask(req: AskRequest):
     global cached_working_model
