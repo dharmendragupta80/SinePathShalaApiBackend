@@ -28,7 +28,7 @@ class AskRequest(BaseModel):
 
 
 # ==========================================
-# ✅ SMART AUTO-MODEL SELECTOR LOGIC
+# ✅ SMART AUTO-MODEL SELECTOR (UPDATED FILTER)
 # ==========================================
 PREFERRED_MODELS = [
     "llama-3.3-70b-versatile",
@@ -61,21 +61,20 @@ async def get_active_groq_model():
                         print(f"Auto-selected working model: {cached_working_model}")
                         return cached_working_model
                 
-                # 2. Fallback: Whisper aur llava ko chhod kar pehla text model chuno
+                # 2. Fallback: Guard, classifier, embed, whisper, llava ko ignore karo
                 for model in active_ids:
-                    if "whisper" not in model and "llava" not in model:
+                    model_lower = model.lower()
+                    if not any(kw in model_lower for kw in ["whisper", "llava", "guard", "embed", "classification"]):
                         cached_working_model = model
-                        print(f"Fallback selected model: {cached_working_model}")
+                        print(f"Safe fallback selected model: {cached_working_model}")
                         return cached_working_model
                         
     except Exception as e:
         print("Failed to fetch live models from Groq:", str(e))
     
-    # Ultimate fallback
+    # Ultimate safe fallback text model
     return "mixtral-8x7b-32768"
 # ==========================================
-
-
 @app.post("/ask", dependencies=[Depends(verify_client_key)])
 async def ask(req: AskRequest):
     global cached_working_model
