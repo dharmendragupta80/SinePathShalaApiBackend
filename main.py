@@ -26,7 +26,6 @@ if not GROQ_API_KEY:
 class AskRequest(BaseModel):
     question: str
 
-
 # ==========================================
 # ✅ SMART AUTO-MODEL SELECTOR (UPDATED FILTER)
 # ==========================================
@@ -61,10 +60,13 @@ async def get_active_groq_model():
                         print(f"Auto-selected working model: {cached_working_model}")
                         return cached_working_model
                 
-                # 2. Fallback: Guard, classifier, embed, whisper, llava ko ignore karo
+                # 2. Fallback: Guard, classifier, embed, whisper, llava, aur canopylabs/orpheus ko ignore karo
                 for model in active_ids:
                     model_lower = model.lower()
-                    if not any(kw in model_lower for kw in ["whisper", "llava", "guard", "embed", "classification"]):
+                    if not any(kw in model_lower for kw in [
+                        "whisper", "llava", "guard", "embed", "classification", 
+                        "canopylabs", "orpheus" # 🔥 Ye naye filters add kiye gaye hain
+                    ]):
                         cached_working_model = model
                         print(f"Safe fallback selected model: {cached_working_model}")
                         return cached_working_model
@@ -75,6 +77,7 @@ async def get_active_groq_model():
     # Ultimate safe fallback text model
     return "mixtral-8x7b-32768"
 # ==========================================
+
 @app.post("/ask", dependencies=[Depends(verify_client_key)])
 async def ask(req: AskRequest):
     global cached_working_model
@@ -141,8 +144,8 @@ async def ask(req: AskRequest):
             print("Response:", resp.text)
             print("======================")
             
-            # Agar model expire ho gaya ho toh cache clear karke naya utha lo
-            if "model_not_found" in resp.text or "model_decommissioned" in resp.text:
+            # Agar model expire ho gaya ho ya terms required ho toh cache clear karke naya utha lo
+            if any(err in resp.text for err in ["model_not_found", "model_decommissioned", "model_terms_required"]):
                 print(f"Model {active_model} failed. Clearing cache...")
                 cached_working_model = None 
                 raise HTTPException(status_code=502, detail="Groq model rotated. Please try again in 1 second.")
